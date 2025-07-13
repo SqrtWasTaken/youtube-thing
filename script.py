@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 import feedparser
 import subprocess
-import datetime
+from datetime import datetime, timedelta, timezone
 import concurrent.futures
 import json
 
@@ -41,12 +41,12 @@ def get_duration(url):
 
 def extract_videos(feed_url, days_back):
     feed = feedparser.parse(feed_url)
-    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=days_back)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
     videos = []
 
     for entry in feed.entries:
         try:
-            pub_date = datetime.datetime(*entry.published_parsed[:6])
+            pub_date = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
             if pub_date >= cutoff:
                 video_url = entry.link
                 title = entry.title
