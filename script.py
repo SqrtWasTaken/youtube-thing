@@ -4,6 +4,7 @@ import subprocess
 import datetime
 import concurrent.futures
 import re
+import json
 
 OPML_FILE = "youtubeSubscriptions.opml"
 DAYS_BACK = 30
@@ -22,14 +23,18 @@ def parse_opml(file_path):
 def get_duration(url):
     try:
         result = subprocess.run(
-            ["yt-dlp", "--skip-download", "--print", "%(duration)s", url],
+            ["yt-dlp", "--skip-download", "--print-json", url],
             capture_output=True, text=True, check=True
         )
-        duration_str = result.stdout.strip()
-        return int(duration_str) if duration_str.isdigit() else 0
+        info = json.loads(result.stdout)
+        # Exclude livestreams and past livestreams
+        if info.get("is_live") or info.get("live_status") in ("live", "was_live"):
+            print(f"Skipping livestream: {info.get('title')}")
+            return None  # Skip
+        return info.get("duration") or 0
     except Exception as e:
-        print(f"Failed to get duration for {url}: {e}")
-        return 0
+        print(f"Failed to get info for {url}: {e}")
+        return None
 
 def extract_videos(feed_url, days_back):
     feed = feedparser.parse(feed_url)
@@ -68,18 +73,20 @@ def main():
     print("Fetching durations with yt-dlp...")
 
     durations = {}
-    count = 1
+    count = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_video = {executor.submit(get_duration, vid['url']): vid for vid in all_videos}
         for future in concurrent.futures.as_completed(future_to_video):
+            count += 1
             vid = future_to_video[future]
             duration = future.result()
+            if duration is None:
+                continue
             ch = vid['channel']
             durations[ch] = durations.get(ch, 0) + duration
             print('yay', count)
-            count += 1
 
-    print("\n=== Upload Duration Summary (Last 30 Days) ===")
+    print("\n=== Upload Duration Summary ===")
     for ch, total_seconds in sorted(durations.items(), key=lambda x: -x[1]):
         mins, secs = divmod(total_seconds, 60)
         hrs, mins = divmod(mins, 60)
