@@ -12,6 +12,6 @@ Make sure [yt-dlp](https://github.com/yt-dlp/yt-dlp) is installed
 - Change `DAYS_BACK` to desired
 - Run the file
 
-Code 100% written by ChatGPT
+Code 98% written by ChatGPT
 
 May or may not have +-1 day difference (timezones are weird?? idk). Use for approximation only
