@@ -1,4 +1,4 @@
-Count total video length for all channels in an OPML file (excluding livestreams)
+Count total video length for all channels in an OPML file (excluding livestreams) for some number of days. Use if you want to know which channels spam the most.
 
 ## Setup
 
