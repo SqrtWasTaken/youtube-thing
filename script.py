@@ -3,11 +3,14 @@ import feedparser
 import subprocess
 import datetime
 import concurrent.futures
-import re
 import json
+
+import time
+t = time.time()
 
 OPML_FILE = "youtubeSubscriptions.opml"
 DAYS_BACK = 30
+OUTPUT_FILE = "summary.txt"
 
 def parse_opml(file_path):
     tree = ET.parse(file_path)
@@ -86,11 +89,21 @@ def main():
             durations[ch] = durations.get(ch, 0) + duration
             print('yay', count)
 
-    print("\n=== Upload Duration Summary ===")
+    summary_lines = ["=== Upload Duration Summary ===\n"]
     for ch, total_seconds in sorted(durations.items(), key=lambda x: -x[1]):
         mins, secs = divmod(total_seconds, 60)
         hrs, mins = divmod(mins, 60)
-        print(f"{ch:<40} {hrs}h {mins}m {secs}s")
+        line = f"{ch:<40} {hrs}h {mins}m {secs}s"
+        print(line)
+        summary_lines.append(line)
+
+    # Write to output file
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.write("\n".join(summary_lines))
+
+    print(f"\nSummary written to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()
+
+print(f"Script executed in {time.time() - t:.2f} seconds")
