@@ -1,0 +1,89 @@
+import xml.etree.ElementTree as ET
+import feedparser
+import subprocess
+import datetime
+import concurrent.futures
+import re
+
+OPML_FILE = "youtubeSubscriptions.opml"
+DAYS_BACK = 30
+
+def parse_opml(file_path):
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+    feeds = []
+
+    for outline in root.iter('outline'):
+        xml_url = outline.attrib.get('xmlUrl')
+        if xml_url:
+            feeds.append((outline.attrib.get('title', 'Unknown'), xml_url))
+    return feeds
+
+def get_duration(url):
+    try:
+        result = subprocess.run(
+            ["yt-dlp", "--skip-download", "--print", "%(duration)s", url],
+            capture_output=True, text=True, check=True
+        )
+        duration_str = result.stdout.strip()
+        return int(duration_str) if duration_str.isdigit() else 0
+    except Exception as e:
+        print(f"Failed to get duration for {url}: {e}")
+        return 0
+
+def extract_videos(feed_url, days_back):
+    feed = feedparser.parse(feed_url)
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=days_back)
+    videos = []
+
+    for entry in feed.entries:
+        try:
+            pub_date = datetime.datetime(*entry.published_parsed[:6])
+            if pub_date >= cutoff:
+                video_url = entry.link
+                title = entry.title
+                channel = feed.feed.title
+                videos.append({
+                    'title': title,
+                    'url': video_url,
+                    'published': pub_date,
+                    'channel': channel
+                })
+        except Exception:
+            continue
+    return videos
+
+def main():
+    print("Parsing OPML...")
+    feeds = parse_opml(OPML_FILE)
+
+    print(f"Found {len(feeds)} feeds. Fetching videos...")
+    all_videos = []
+    for title, feed_url in feeds:
+        vids = extract_videos(feed_url, DAYS_BACK)
+        all_videos.extend(vids)
+
+    print(f"Found {len(all_videos)} videos uploaded in the last {DAYS_BACK} days.")
+    
+    print("Fetching durations with yt-dlp...")
+
+    durations = {}
+    count = 1
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_video = {executor.submit(get_duration, vid['url']): vid for vid in all_videos}
+        for future in concurrent.futures.as_completed(future_to_video):
+            vid = future_to_video[future]
+            duration = future.result()
+            ch = vid['channel']
+            durations[ch] = durations.get(ch, 0) + duration
+            print('yay', count)
+            count += 1
+
+    print("\n=== Upload Duration Summary (Last 30 Days) ===")
+    for ch, total_seconds in sorted(durations.items(), key=lambda x: -x[1]):
+        mins, secs = divmod(total_seconds, 60)
+        hrs, mins = divmod(mins, 60)
+        print(f"{ch:<40} {hrs}h {mins}m {secs}s")
+
+if __name__ == "__main__":
+    main()
